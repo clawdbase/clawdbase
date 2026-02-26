@@ -1,4 +1,22 @@
+# Dependencies
 node_modules/
+
+# Build
 dist/
+
+# Environment
 .env
+.env.local
+.env.*.local
+
+# Logs
 *.log
+logs/
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
