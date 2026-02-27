@@ -13,6 +13,7 @@ const COLORS = {
     warn: '\x1b[33m',
     error: '\x1b[31m',
     reset: '\x1b[0m',
+    dim: '\x1b[2m',
 };
 
 class Logger {
@@ -23,12 +24,16 @@ class Logger {
         this.level = LEVELS[envLevel] ?? LEVELS.info;
     }
 
+    private formatTime(): string {
+        return new Date().toISOString().slice(11, 19);
+    }
+
     private log(level: LogLevel, ...args: unknown[]): void {
         if (LEVELS[level] >= this.level) {
-            const time = new Date().toISOString().slice(11, 19);
             const color = COLORS[level];
-            const tag = level.toUpperCase().padEnd(5);
-            console.log(`${color}[${time}] [${tag}]${COLORS.reset}`, ...args);
+            const time = `${COLORS.dim}${this.formatTime()}${COLORS.reset}`;
+            const tag = `${color}${level.toUpperCase().padEnd(5)}${COLORS.reset}`;
+            console.log(`[${time}] [${tag}]`, ...args);
         }
     }
 

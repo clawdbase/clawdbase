@@ -1,5 +1,3 @@
-// Environment validation utilities
-
 const REQUIRED_VARS = [
     'COINBASE_API_KEY',
     'COINBASE_API_SECRET',
@@ -10,17 +8,17 @@ export function validateEnv(): string[] {
 
     for (const varName of REQUIRED_VARS) {
         if (!process.env[varName]) {
-            errors.push(`Missing required environment variable: ${varName}`);
+            errors.push(`Missing: ${varName}`);
         }
     }
 
     return errors;
 }
 
-export function getEnvOrThrow(key: string): string {
+export function getEnv(key: string, fallback?: string): string {
     const value = process.env[key];
-    if (!value) {
+    if (!value && fallback === undefined) {
         throw new Error(`Missing environment variable: ${key}`);
     }
-    return value;
+    return value || fallback || '';
 }
