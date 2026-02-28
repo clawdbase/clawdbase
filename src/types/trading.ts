@@ -1,4 +1,4 @@
-// Trading engine types
+import type { OrderSide } from './coinbase';
 
 export type TradeSignal = 'BUY' | 'SELL' | 'HOLD';
 
@@ -7,35 +7,43 @@ export interface TradeDecision {
     pair: string;
     confidence: number;
     reason: string;
-    suggestedSize?: number;
-}
-
-export interface Position {
-    pair: string;
-    side: 'LONG' | 'SHORT';
-    entryPrice: number;
-    currentPrice: number;
-    size: number;
-    unrealizedPnl: number;
-    unrealizedPnlPercent: number;
-}
-
-export interface Portfolio {
-    totalValueUsd: number;
-    positions: Position[];
-    availableCash: number;
-}
-
-// Strategy types - to be expanded
-export interface Strategy {
-    name: string;
-    analyze(data: MarketData): TradeDecision;
+    suggestedSizeUsd?: number;
 }
 
 export interface MarketData {
     pair: string;
     price: number;
+    bid: number;
+    ask: number;
     volume24h: number;
-    priceChange24h: number;
+    priceChange24hPercent: number;
     timestamp: Date;
+}
+
+export interface TradeExecution {
+    orderId: string;
+    pair: string;
+    side: OrderSide;
+    requestedSizeUsd: number;
+    filledSize: number;
+    averagePrice: number;
+    totalCost: number;
+    timestamp: Date;
+}
+
+export interface Strategy {
+    readonly name: string;
+    analyze(data: MarketData, context: StrategyContext): TradeDecision;
+}
+
+export interface StrategyContext {
+    portfolio: {
+        cashUsd: number;
+        totalValueUsd: number;
+    };
+    lastTrade?: TradeExecution;
+    currentPosition?: {
+        size: number;
+        averageEntryPrice: number;
+    };
 }

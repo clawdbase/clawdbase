@@ -1,5 +1,3 @@
-// Coinbase Advanced Trade API types
-
 export interface CoinbaseAccount {
     uuid: string;
     name: string;
@@ -8,12 +6,18 @@ export interface CoinbaseAccount {
         value: string;
         currency: string;
     };
+    hold: {
+        value: string;
+        currency: string;
+    };
     default: boolean;
     active: boolean;
     created_at: string;
     updated_at: string;
-    type: 'ACCOUNT_TYPE_CRYPTO' | 'ACCOUNT_TYPE_FIAT';
+    type: AccountType;
 }
+
+export type AccountType = 'ACCOUNT_TYPE_CRYPTO' | 'ACCOUNT_TYPE_FIAT';
 
 export interface AccountsResponse {
     accounts: CoinbaseAccount[];
@@ -35,7 +39,7 @@ export interface TickerTrade {
     price: string;
     size: string;
     time: string;
-    side: 'BUY' | 'SELL';
+    side: OrderSide;
 }
 
 export interface Product {
@@ -57,29 +61,45 @@ export interface ProductsResponse {
     num_products: number;
 }
 
-// Order types - not fully used yet
 export type OrderSide = 'BUY' | 'SELL';
 export type OrderType = 'MARKET' | 'LIMIT' | 'STOP' | 'STOP_LIMIT';
+export type OrderStatus = 'PENDING' | 'OPEN' | 'FILLED' | 'CANCELLED' | 'EXPIRED' | 'FAILED';
 
-export interface OrderRequest {
+export interface CreateOrderRequest {
     client_order_id: string;
     product_id: string;
     side: OrderSide;
-    order_configuration: MarketOrderConfig | LimitOrderConfig;
+    order_configuration: OrderConfiguration;
 }
 
-export interface MarketOrderConfig {
-    market_market_ioc: {
-        quote_size?: string;
-        base_size?: string;
+export type OrderConfiguration =
+    | { market_market_ioc: MarketOrderParams }
+    | { limit_limit_gtc: LimitOrderParams };
+
+export interface MarketOrderParams {
+    quote_size?: string;
+    base_size?: string;
+}
+
+export interface LimitOrderParams {
+    base_size: string;
+    limit_price: string;
+    post_only: boolean;
+}
+
+export interface CreateOrderResponse {
+    success: boolean;
+    order_id: string;
+    success_response?: {
+        order_id: string;
+        product_id: string;
+        side: OrderSide;
+        client_order_id: string;
     };
-}
-
-export interface LimitOrderConfig {
-    limit_limit_gtc: {
-        base_size: string;
-        limit_price: string;
-        post_only: boolean;
+    error_response?: {
+        error: string;
+        message: string;
+        error_details: string;
     };
 }
 
@@ -87,8 +107,16 @@ export interface Order {
     order_id: string;
     product_id: string;
     side: OrderSide;
-    status: string;
+    status: OrderStatus;
     created_time: string;
+    completion_percentage: string;
     filled_size: string;
     average_filled_price: string;
+    total_value_after_fees: string;
+}
+
+export interface OrdersResponse {
+    orders: Order[];
+    has_next: boolean;
+    cursor: string;
 }

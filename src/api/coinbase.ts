@@ -7,6 +7,10 @@ import type {
     Ticker,
     Product,
     ProductsResponse,
+    CreateOrderRequest,
+    CreateOrderResponse,
+    Order,
+    OrdersResponse,
 } from '../types';
 import { logger } from '../utils/logger';
 import { CoinbaseApiError } from '../errors';
@@ -25,23 +29,15 @@ export class CoinbaseClient {
             timeout: config.timeout,
         });
 
-        logger.debug(`CoinbaseClient initialized: ${config.baseUrl}`);
+        logger.debug(`CoinbaseClient: ${config.baseUrl}`);
     }
 
-    private sign(
-        timestamp: string,
-        method: string,
-        path: string,
-        body: string = ''
-    ): string {
+    private sign(timestamp: string, method: string, path: string, body = ''): string {
         const message = timestamp + method + path + body;
-        return crypto
-            .createHmac('sha256', this.apiSecret)
-            .update(message)
-            .digest('hex');
+        return crypto.createHmac('sha256', this.apiSecret).update(message).digest('hex');
     }
 
-    private getHeaders(method: string, path: string, body: string = ''): Record<string, string> {
+    private getHeaders(method: string, path: string, body = ''): Record<string, string> {
         const timestamp = Math.floor(Date.now() / 1000).toString();
         const signature = this.sign(timestamp, method, path, body);
 
@@ -53,11 +49,7 @@ export class CoinbaseClient {
         };
     }
 
-    private async request<T>(
-        method: 'GET' | 'POST' | 'DELETE',
-        path: string,
-        data?: unknown
-    ): Promise<T> {
+    private async request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, data?: unknown): Promise<T> {
         const body = data ? JSON.stringify(data) : '';
         const headers = this.getHeaders(method, path, body);
 
@@ -71,7 +63,8 @@ export class CoinbaseClient {
             return response.data;
         } catch (error) {
             if (error instanceof AxiosError && error.response) {
-                const msg = error.response.data?.message || error.message;
+                const msg = error.response.data?.message || error.response.data?.error || error.message;
+                logger.debug('API error response:', error.response.data);
                 throw new CoinbaseApiError(msg, error.response.status);
             }
             throw error;
@@ -79,10 +72,7 @@ export class CoinbaseClient {
     }
 
     async getAccounts(): Promise<CoinbaseAccount[]> {
-        const response = await this.request<AccountsResponse>(
-            'GET',
-            '/api/v3/brokerage/accounts'
-        );
+        const response = await this.request<AccountsResponse>('GET', '/api/v3/brokerage/accounts');
         return response.accounts;
     }
 
@@ -95,29 +85,42 @@ export class CoinbaseClient {
     }
 
     async getTicker(productId: string): Promise<Ticker> {
-        return this.request<Ticker>(
-            'GET',
-            `/api/v3/brokerage/products/${productId}/ticker`
-        );
+        return this.request<Ticker>('GET', `/api/v3/brokerage/products/${productId}/ticker`);
     }
 
     async getProducts(): Promise<Product[]> {
-        const response = await this.request<ProductsResponse>(
-            'GET',
-            '/api/v3/brokerage/products'
-        );
+        const response = await this.request<ProductsResponse>('GET', '/api/v3/brokerage/products');
         return response.products;
     }
 
     async getProduct(productId: string): Promise<Product> {
-        return this.request<Product>(
-            'GET',
-            `/api/v3/brokerage/products/${productId}`
-        );
+        return this.request<Product>('GET', `/api/v3/brokerage/products/${productId}`);
     }
 
-    // TODO: Implement order methods
-    // async createOrder(order: OrderRequest): Promise<Order> { }
-    // async cancelOrder(orderId: string): Promise<void> { }
-    // async getOrders(): Promise<Order[]> { }
+    async createOrder(order: CreateOrderRequest): Promise<CreateOrderResponse> {
+        return this.request<CreateOrderResponse>('POST', '/api/v3/brokerage/orders', order);
+    }
+
+    async cancelOrder(orderId: string): Promise<void> {
+        await this.request<unknown>('POST', '/api/v3/brokerage/orders/batch_cancel', {
+            order_ids: [orderId],
+        });
+    }
+
+    async getOrders(status?: string): Promise<Order[]> {
+        const params = status ? `?order_status=${status}` : '';
+        const response = await this.request<OrdersResponse>(
+            'GET',
+            `/api/v3/brokerage/orders/historical/batch${params}`
+        );
+        return response.orders;
+    }
+
+    async getOrder(orderId: string): Promise<Order> {
+        const response = await this.request<{ order: Order }>(
+            'GET',
+            `/api/v3/brokerage/orders/historical/${orderId}`
+        );
+        return response.order;
+    }
 }
