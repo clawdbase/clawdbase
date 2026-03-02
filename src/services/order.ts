@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { CoinbaseClient } from '../api/coinbase';
 import { logger } from '../utils/logger';
-import type { OrderSide, CreateOrderRequest } from '../types';
+import type { OrderSide, CreateOrderRequest, TradeExecution } from '../types';
 
 export interface OrderResult {
     success: boolean;
@@ -11,9 +11,14 @@ export interface OrderResult {
 
 export class OrderService {
     private readonly client: CoinbaseClient;
+    private readonly recentTrades: TradeExecution[] = [];
 
     constructor(client: CoinbaseClient) {
         this.client = client;
+    }
+
+    get trades(): TradeExecution[] {
+        return [...this.recentTrades];
     }
 
     async executeMarketOrder(
@@ -34,16 +39,33 @@ export class OrderService {
             },
         };
 
-        logger.debug('Creating order:', order);
+        logger.debug('Creating order:', JSON.stringify(order));
 
         try {
             const response = await this.client.createOrder(order);
 
             if (response.success && response.success_response) {
-                return {
+                const orderId = response.success_response.order_id;
+
+                // Record trade
+                this.recentTrades.push({
+                    orderId,
+                    pair: productId,
+                    side,
+                    requestedSizeUsd: quoteSize,
+                    filledSize: 0, // Would need to fetch order details
+                    averagePrice: 0,
+                    totalCost: quoteSize,
+                    timestamp: new Date(),
                     success: true,
-                    orderId: response.success_response.order_id,
-                };
+                });
+
+                // Keep last 100 trades
+                if (this.recentTrades.length > 100) {
+                    this.recentTrades.shift();
+                }
+
+                return { success: true, orderId };
             }
 
             return {
@@ -63,7 +85,7 @@ export class OrderService {
             await this.client.cancelOrder(orderId);
             return true;
         } catch (err) {
-            logger.error('Failed to cancel order:', err instanceof Error ? err.message : err);
+            logger.error('Cancel failed:', err instanceof Error ? err.message : err);
             return false;
         }
     }

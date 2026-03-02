@@ -1,95 +1,137 @@
 # clawdbase
 
-[![Version](https://img.shields.io/badge/version-0.3.0-blue)](package.json)
+[![CI](https://github.com/yourname/clawdbase/actions/workflows/ci.yml/badge.svg)](https://github.com/yourname/clawdbase/actions)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](package.json)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-AI-powered Coinbase trading terminal managed by Clawd.
+**AI-powered Coinbase trading terminal managed by Clawd.**
+
+Clawdbase is an automated cryptocurrency trading terminal that connects to Coinbase Advanced Trade API. It features multiple trading strategies, risk management, and optional AI-powered trading signals through Clawd integration.
 
 ## Features
 
-- **Coinbase Advanced Trade API** - Full authenticated integration
-- **Automated Trading** - Execute trades with configurable strategies
+- **Coinbase Integration** - Full Advanced Trade API support
 - **Multiple Strategies** - DCA, Momentum, Mean Reversion
-- **CLI Interface** - Easy command-line control
-- **Risk Management** - Stop-loss, position limits
+- **Clawd AI** - AI-powered trade signal analysis
+- **Terminal UI** - Real-time dashboard with portfolio view
+- **Risk Management** - Stop-loss, position limits, daily loss limits
+- **CLI Tools** - Quick commands for balances and prices
 
-## Installation
+## Quick Start
 
 ```bash
-git clone https://github.com/yourname/clawdbase.git
+# Clone repository
+git clone https://github.com/clawdbase/clawdbase.git
 cd clawdbase
+
+# Install dependencies
 npm install
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your Coinbase API credentials
+
+# Build and run
+npm run build
+npm start
 ```
 
 ## Configuration
 
-```bash
-cp .env.example .env
-```
+### Required Environment Variables
 
-Edit `.env` with your Coinbase API credentials.
+| Variable | Description |
+|----------|-------------|
+| `COINBASE_API_KEY` | Coinbase Advanced Trade API key |
+| `COINBASE_API_SECRET` | Coinbase API secret |
+
+### Optional Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `COINBASE_SANDBOX` | `true` | Use sandbox for testing |
+| `LOG_LEVEL` | `info` | Logging verbosity |
+| `STRATEGY` | `dca` | Trading strategy |
+| `TRADING_PAIRS` | `BTC-USD,ETH-USD` | Pairs to trade |
+| `CLAWD_ENABLED` | `false` | Enable AI signals |
+| `CLAWD_API_KEY` | - | Clawd API key |
+
+See [`.env.example`](.env.example) for all options.
 
 ## Usage
 
-```bash
-# Build
-npm run build
+### Trading Bot
 
-# Run trading bot
+```bash
+# Start with terminal UI
 npm start
 
-# CLI commands
-npm run cli -- balance          # Show balances
-npm run cli -- price BTC-USD    # Get price
-npm run cli -- trade            # Start trading loop
+# Start headless (no UI)
+npm start -- --headless
+```
 
-# Development
-npm run dev                     # Watch mode
-npm test                        # Run tests
+### CLI Commands
+
+```bash
+npm run cli -- balance           # Show portfolio
+npm run cli -- price BTC-USD     # Get price
+npm run cli -- orders            # List open orders
+npm run cli -- trade buy BTC-USD 50  # Manual trade
+```
+
+### Development
+
+```bash
+npm run dev        # Watch mode
+npm run lint       # Lint code
+npm run typecheck  # Type check
+npm test           # Run tests
+npm run test:cov   # With coverage
 ```
 
 ## Trading Strategies
 
-| Strategy | Description |
-|----------|-------------|
-| `dca` | Dollar-cost averaging at intervals |
-| `momentum` | Buy on upward momentum |
-| `meanreversion` | Buy dips, sell rallies |
-
-Configure strategy in `.env`:
-
-```
-STRATEGY=dca
-```
+| Strategy | Description | Best For |
+|----------|-------------|----------|
+| `dca` | Dollar-cost averaging at intervals | Long-term accumulation |
+| `momentum` | Follow price trends | Trending markets |
+| `meanreversion` | Buy dips, sell rallies | Ranging markets |
 
 ## Architecture
 
 ```
 src/
+├── ai/               # Clawd AI integration
 ├── api/              # Coinbase API client
 ├── cli/              # Command-line interface
-├── config/           # Configuration
+├── config/           # Configuration management
 ├── errors/           # Custom error types
-├── services/         # Business logic services
+├── services/         # Business logic
 ├── trading/          # Trading engine
-│   └── strategies/   # Trading strategies
+│   └── strategies/   # Strategy implementations
 ├── types/            # TypeScript definitions
+├── ui/               # Terminal UI
 └── utils/            # Utilities
 ```
 
-## Progress
+## Risk Disclaimer
 
-- [x] Coinbase API integration
-- [x] Account & balance fetching
-- [x] Price data
-- [x] Order execution
-- [x] Trading strategies
-- [x] CLI interface
-- [ ] Clawd AI integration
-- [ ] Terminal UI
-- [ ] Websocket streaming
+**USE AT YOUR OWN RISK.** This software trades real cryptocurrency. You can lose money. Always:
+
+- Start with sandbox mode
+- Test strategies with small amounts
+- Never invest more than you can afford to lose
+- Understand the strategies before using them
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## License
 
-MIT
+MIT - see [LICENSE](LICENSE)

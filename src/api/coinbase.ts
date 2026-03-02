@@ -19,6 +19,7 @@ export class CoinbaseClient {
     private readonly apiKey: string;
     private readonly apiSecret: string;
     private readonly client: AxiosInstance;
+    private requestCount = 0;
 
     constructor(config: CoinbaseConfig) {
         this.apiKey = config.apiKey;
@@ -52,6 +53,7 @@ export class CoinbaseClient {
     private async request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, data?: unknown): Promise<T> {
         const body = data ? JSON.stringify(data) : '';
         const headers = this.getHeaders(method, path, body);
+        this.requestCount++;
 
         try {
             const response = await this.client.request<T>({
@@ -64,11 +66,15 @@ export class CoinbaseClient {
         } catch (error) {
             if (error instanceof AxiosError && error.response) {
                 const msg = error.response.data?.message || error.response.data?.error || error.message;
-                logger.debug('API error response:', error.response.data);
+                logger.debug('API error:', error.response.status, error.response.data);
                 throw new CoinbaseApiError(msg, error.response.status);
             }
             throw error;
         }
+    }
+
+    get stats(): { requestCount: number } {
+        return { requestCount: this.requestCount };
     }
 
     async getAccounts(): Promise<CoinbaseAccount[]> {

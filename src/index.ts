@@ -4,48 +4,21 @@ import { config } from './config';
 import { validateEnv } from './utils/env';
 import { CoinbaseClient } from './api/coinbase';
 import { TradingEngine } from './trading/engine';
-import { PortfolioService } from './services/portfolio';
-import { formatCurrency } from './utils/format';
+import { ClawdClient } from './ai/clawd';
+import { TerminalUI } from './ui/terminal';
 
-const VERSION = '0.3.0';
-
-async function displayStartup(client: CoinbaseClient): Promise<void> {
-    const portfolio = new PortfolioService(client);
-    const summary = await portfolio.getSummary();
-
-    logger.info('');
-    logger.info('Portfolio:');
-    logger.info(`  Total Value: ${formatCurrency(summary.totalValueUsd, 'USD')}`);
-    logger.info(`  Cash:        ${formatCurrency(summary.cashUsd, 'USD')}`);
-    logger.info('');
-    logger.info('Holdings:');
-
-    for (const holding of summary.holdings.slice(0, 5)) {
-        logger.info(
-            `  ${holding.currency.padEnd(6)} ${holding.amount.toFixed(6).padStart(14)} ` +
-            `(${formatCurrency(holding.valueUsd, 'USD')})`
-        );
-    }
-
-    logger.info('');
-    logger.info('Prices:');
-
-    for (const pair of config.trading.pairs) {
-        try {
-            const ticker = await client.getTicker(pair);
-            logger.info(`  ${pair.padEnd(10)} ${formatCurrency(parseFloat(ticker.price), 'USD')}`);
-        } catch {
-            logger.debug(`Could not fetch ${pair}`);
-        }
-    }
-}
+const VERSION = '1.0.0';
 
 async function main(): Promise<void> {
+    const headless = process.argv.includes('--headless');
+
     logger.info('==========================================');
     logger.info(`  clawdbase v${VERSION}`);
     logger.info('  AI-Powered Coinbase Trading Terminal');
     logger.info('==========================================');
+    logger.info('');
 
+    // Validate environment
     const envErrors = validateEnv();
     if (envErrors.length > 0) {
         envErrors.forEach(err => logger.error(err));
@@ -55,38 +28,54 @@ async function main(): Promise<void> {
     }
 
     if (config.sandbox) {
-        logger.warn('SANDBOX MODE');
+        logger.warn('SANDBOX MODE - No real trades');
     } else {
         logger.warn('!!! LIVE TRADING MODE !!!');
     }
 
-    const client = new CoinbaseClient(config.coinbase);
+    // Initialize clients
+    const coinbase = new CoinbaseClient(config.coinbase);
 
+    let clawd: ClawdClient | undefined;
+    if (config.clawd.enabled) {
+        clawd = new ClawdClient(config.clawd);
+        logger.info('Clawd AI enabled');
+    }
+
+    // Test connection
     try {
-        logger.info('Connecting...');
-        await displayStartup(client);
+        logger.info('Connecting to Coinbase...');
+        const accounts = await coinbase.getAccounts();
+        logger.info(`Connected - ${accounts.length} accounts found`);
     } catch (err) {
         logger.error('Connection failed:', err instanceof Error ? err.message : err);
         process.exit(1);
     }
 
-    // Start trading engine
-    const engine = new TradingEngine(client, config);
-
-    logger.info('');
-    logger.info(`Strategy: ${config.trading.strategy}`);
-    logger.info('Starting trading engine...');
-    logger.info('');
+    // Initialize trading engine
+    const engine = new TradingEngine(coinbase, config, clawd);
 
     // Handle shutdown
-    process.on('SIGINT', () => {
+    const shutdown = (): void => {
         logger.info('');
         logger.info('Shutting down...');
         engine.stop();
         process.exit(0);
-    });
+    };
 
-    await engine.start();
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+
+    // Start UI or headless
+    if (!headless && config.ui.enabled) {
+        const ui = new TerminalUI(coinbase, engine, config);
+        await ui.start();
+    } else {
+        logger.info(`Strategy: ${config.trading.strategy}`);
+        logger.info('Starting trading engine (headless)...');
+        logger.info('');
+        await engine.start();
+    }
 }
 
 main().catch(err => {

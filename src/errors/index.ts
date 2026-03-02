@@ -22,6 +22,10 @@ export class CoinbaseApiError extends ClawdbaseError {
     get isUnauthorized(): boolean {
         return this.statusCode === 401;
     }
+
+    get isNotFound(): boolean {
+        return this.statusCode === 404;
+    }
 }
 
 export class ConfigError extends ClawdbaseError {
@@ -39,8 +43,23 @@ export class TradingError extends ClawdbaseError {
 }
 
 export class InsufficientFundsError extends TradingError {
+    readonly required: number;
+    readonly available: number;
+
     constructor(required: number, available: number) {
         super(`Insufficient funds: need $${required.toFixed(2)}, have $${available.toFixed(2)}`);
         this.name = 'InsufficientFundsError';
+        this.required = required;
+        this.available = available;
+    }
+}
+
+export class OrderError extends TradingError {
+    readonly orderId?: string;
+
+    constructor(message: string, orderId?: string) {
+        super(message);
+        this.name = 'OrderError';
+        this.orderId = orderId;
     }
 }

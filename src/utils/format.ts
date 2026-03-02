@@ -6,7 +6,7 @@ export function formatCurrency(value: number, currency: string): string {
         })}`;
     }
 
-    const decimals = value < 1 ? 8 : value < 100 ? 4 : 2;
+    const decimals = value < 0.001 ? 8 : value < 1 ? 6 : value < 100 ? 4 : 2;
     return value.toLocaleString('en-US', {
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,
@@ -14,19 +14,21 @@ export function formatCurrency(value: number, currency: string): string {
 }
 
 export function formatPercent(value: number, includeSign = true): string {
-    const sign = includeSign && value >= 0 ? '+' : '';
-    return `${sign}${(value * 100).toFixed(2)}%`;
+    const percent = value * 100;
+    const sign = includeSign && percent >= 0 ? '+' : '';
+    return `${sign}${percent.toFixed(2)}%`;
 }
 
-export function formatSize(bytes: number): string {
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let size = bytes;
-    let unitIndex = 0;
+export function formatNumber(value: number, decimals = 2): string {
+    return value.toLocaleString('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+    });
+}
 
-    while (size >= 1024 && unitIndex < units.length - 1) {
-        size /= 1024;
-        unitIndex++;
-    }
-
-    return `${size.toFixed(1)} ${units[unitIndex]}`;
+export function formatDuration(ms: number): string {
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+    if (ms < 3600000) return `${(ms / 60000).toFixed(1)}m`;
+    return `${(ms / 3600000).toFixed(1)}h`;
 }

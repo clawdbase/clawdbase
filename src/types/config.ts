@@ -5,6 +5,8 @@ export interface Config {
     coinbase: CoinbaseConfig;
     trading: TradingConfig;
     risk: RiskConfig;
+    clawd: ClawdConfig;
+    ui: UiConfig;
     sandbox: boolean;
     logLevel: LogLevel;
 }
@@ -34,4 +36,16 @@ export interface RiskConfig {
     maxPositionPercent: number;
     stopLossPercent: number;
     maxDailyLossPercent: number;
+}
+
+export interface ClawdConfig {
+    enabled: boolean;
+    apiKey: string;
+    baseUrl: string;
+    confidenceThreshold: number;
+}
+
+export interface UiConfig {
+    enabled: boolean;
+    refreshMs: number;
 }

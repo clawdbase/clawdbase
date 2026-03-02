@@ -1,9 +1,18 @@
 import { CoinbaseClient } from '../api/coinbase';
+import { ClawdClient } from '../ai/clawd';
 import { logger } from '../utils/logger';
 import { createStrategy } from './strategies';
 import { OrderService } from '../services/order';
 import { PortfolioService } from '../services/portfolio';
-import type { Config, MarketData, TradeDecision, Strategy, StrategyContext } from '../types';
+import type {
+    Config,
+    MarketData,
+    TradeDecision,
+    Strategy,
+    StrategyContext,
+    EngineState,
+    ClawdAnalysis,
+} from '../types';
 
 export class TradingEngine {
     private readonly client: CoinbaseClient;
@@ -11,34 +20,50 @@ export class TradingEngine {
     private readonly strategy: Strategy;
     private readonly orderService: OrderService;
     private readonly portfolioService: PortfolioService;
+    private readonly clawd?: ClawdClient;
+
     private running = false;
     private intervalId: NodeJS.Timeout | null = null;
+    private tickCount = 0;
+    private tradesExecuted = 0;
+    private errors = 0;
+    private lastTick: Date | null = null;
 
-    constructor(client: CoinbaseClient, config: Config) {
+    constructor(client: CoinbaseClient, config: Config, clawd?: ClawdClient) {
         this.client = client;
         this.config = config;
+        this.clawd = clawd;
         this.strategy = createStrategy(config.trading.strategy, config);
         this.orderService = new OrderService(client);
         this.portfolioService = new PortfolioService(client);
 
-        logger.debug(`TradingEngine initialized with strategy: ${this.strategy.name}`);
+        logger.debug(`TradingEngine: strategy=${this.strategy.name}, clawd=${!!clawd}`);
+    }
+
+    get state(): EngineState {
+        return {
+            running: this.running,
+            lastTick: this.lastTick,
+            tickCount: this.tickCount,
+            tradesExecuted: this.tradesExecuted,
+            errors: this.errors,
+        };
     }
 
     async start(): Promise<void> {
         if (this.running) {
-            logger.warn('Trading engine already running');
+            logger.warn('Engine already running');
             return;
         }
 
         this.running = true;
         logger.info('Trading engine started');
 
-        // Run immediately
         await this.tick();
 
-        // Then on interval
         this.intervalId = setInterval(() => {
             this.tick().catch(err => {
+                this.errors++;
                 logger.error('Tick error:', err instanceof Error ? err.message : err);
             });
         }, this.config.trading.intervalMs);
@@ -53,8 +78,10 @@ export class TradingEngine {
         logger.info('Trading engine stopped');
     }
 
-    private async tick(): Promise<void> {
-        logger.debug('--- Tick ---');
+    async tick(): Promise<void> {
+        this.tickCount++;
+        this.lastTick = new Date();
+        logger.debug(`--- Tick #${this.tickCount} ---`);
 
         const summary = await this.portfolioService.getSummary();
         const context: StrategyContext = {
@@ -64,18 +91,54 @@ export class TradingEngine {
             },
         };
 
+        // Gather market data for all pairs
+        const marketDataList: MarketData[] = [];
         for (const pair of this.config.trading.pairs) {
             try {
-                const marketData = await this.getMarketData(pair);
-                const decision = this.strategy.analyze(marketData, context);
+                const data = await this.getMarketData(pair);
+                marketDataList.push(data);
+            } catch (err) {
+                logger.debug(`Could not fetch ${pair}:`, err instanceof Error ? err.message : err);
+            }
+        }
 
-                logger.debug(`${pair}: ${decision.signal} (${(decision.confidence * 100).toFixed(0)}%)`);
+        // Get Clawd AI signals if enabled
+        let clawdSignals: ClawdAnalysis[] = [];
+        if (this.clawd && marketDataList.length > 0) {
+            clawdSignals = await this.clawd.analyze(marketDataList);
+        }
+
+        // Process each pair
+        for (const data of marketDataList) {
+            try {
+                // Check for Clawd signal first
+                const clawdSignal = clawdSignals.find(s => s.pair === data.pair);
+                let decision: TradeDecision;
+
+                if (clawdSignal && clawdSignal.confidence >= this.config.clawd.confidenceThreshold) {
+                    decision = {
+                        signal: clawdSignal.signal,
+                        pair: data.pair,
+                        confidence: clawdSignal.confidence,
+                        reason: clawdSignal.reasoning,
+                        suggestedSizeUsd: context.portfolio.cashUsd * this.config.trading.maxPositionPercent,
+                        source: 'clawd',
+                    };
+                    logger.info(`Clawd signal for ${data.pair}: ${decision.signal}`);
+                } else {
+                    // Fallback to strategy
+                    decision = this.strategy.analyze(data, context);
+                    decision.source = 'strategy';
+                }
+
+                logger.debug(`${data.pair}: ${decision.signal} (${(decision.confidence * 100).toFixed(0)}%)`);
 
                 if (decision.signal !== 'HOLD' && decision.confidence > 0.6) {
                     await this.executeDecision(decision);
                 }
             } catch (err) {
-                logger.error(`Error processing ${pair}:`, err instanceof Error ? err.message : err);
+                this.errors++;
+                logger.error(`Error processing ${data.pair}:`, err instanceof Error ? err.message : err);
             }
         }
     }
@@ -97,12 +160,12 @@ export class TradingEngine {
 
     private async executeDecision(decision: TradeDecision): Promise<void> {
         if (!decision.suggestedSizeUsd || decision.suggestedSizeUsd < this.config.trading.minOrderUsd) {
-            logger.debug('Order size too small, skipping');
+            logger.debug('Order size too small');
             return;
         }
 
-        logger.info(`Executing ${decision.signal} for ${decision.pair}: $${decision.suggestedSizeUsd.toFixed(2)}`);
-        logger.info(`Reason: ${decision.reason}`);
+        logger.info(`Executing ${decision.signal} ${decision.pair}: $${decision.suggestedSizeUsd.toFixed(2)}`);
+        logger.info(`Source: ${decision.source} | Reason: ${decision.reason}`);
 
         try {
             const result = await this.orderService.executeMarketOrder(
@@ -112,12 +175,15 @@ export class TradingEngine {
             );
 
             if (result.success) {
+                this.tradesExecuted++;
                 logger.info(`Order filled: ${result.orderId}`);
             } else {
+                this.errors++;
                 logger.error(`Order failed: ${result.error}`);
             }
         } catch (err) {
-            logger.error('Order execution error:', err instanceof Error ? err.message : err);
+            this.errors++;
+            logger.error('Order error:', err instanceof Error ? err.message : err);
         }
     }
 }

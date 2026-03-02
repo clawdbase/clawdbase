@@ -52,6 +52,10 @@ class Logger {
     error(...args: unknown[]): void {
         this.log('error', ...args);
     }
+
+    setLevel(level: LogLevel): void {
+        this.level = LEVELS[level] ?? LEVELS.info;
+    }
 }
 
 export const logger = new Logger();

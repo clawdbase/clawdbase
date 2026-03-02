@@ -8,6 +8,7 @@ export interface TradeDecision {
     confidence: number;
     reason: string;
     suggestedSizeUsd?: number;
+    source: 'strategy' | 'clawd' | 'manual';
 }
 
 export interface MarketData {
@@ -29,6 +30,7 @@ export interface TradeExecution {
     averagePrice: number;
     totalCost: number;
     timestamp: Date;
+    success: boolean;
 }
 
 export interface Strategy {
@@ -46,4 +48,12 @@ export interface StrategyContext {
         size: number;
         averageEntryPrice: number;
     };
+}
+
+export interface EngineState {
+    running: boolean;
+    lastTick: Date | null;
+    tickCount: number;
+    tradesExecuted: number;
+    errors: number;
 }

@@ -17,3 +17,11 @@ export function getEnv(key: string, fallback?: string): string {
     }
     return value || fallback || '';
 }
+
+export function requireEnv(key: string): string {
+    const value = process.env[key];
+    if (!value) {
+        throw new Error(`Required environment variable not set: ${key}`);
+    }
+    return value;
+}
